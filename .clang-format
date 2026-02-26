@@ -1,0 +1,44 @@
+﻿---
+BasedOnStyle: LLVM
+AccessModifierOffset: '-4'
+AlignConsecutiveMacros: 'true'
+AlignConsecutiveAssignments: 'true'
+AlignConsecutiveDeclarations: 'false'
+AlignEscapedNewlines: DontAlign
+AlignOperands: 'false'
+AlignTrailingComments: 'true'
+AllowShortBlocksOnASingleLine: 'true'
+AllowShortCaseLabelsOnASingleLine: 'true'
+AllowShortFunctionsOnASingleLine: All
+AllowShortIfStatementsOnASingleLine: Always
+AllowShortLambdasOnASingleLine: Inline
+AllowShortLoopsOnASingleLine: 'true'
+AlwaysBreakAfterDefinitionReturnType: None
+BinPackArguments: 'false'
+BinPackParameters: 'false'
+BreakBeforeBinaryOperators: NonAssignment
+BreakBeforeBraces: Attach
+BreakBeforeTernaryOperators: 'false'
+BreakConstructorInitializers: AfterColon
+BreakInheritanceList: AfterColon
+Cpp11BracedListStyle: 'true'
+IncludeBlocks: Preserve
+IndentCaseLabels: 'true'
+IndentPPDirectives: BeforeHash
+IndentWidth: '4'
+KeepEmptyLinesAtTheStartOfBlocks: 'false'
+MaxEmptyLinesToKeep: '1'
+ReflowComments: 'true'
+SortIncludes: 'true'
+SortUsingDeclarations: 'true'
+SpaceBeforeAssignmentOperators: 'true'
+TabWidth: '4'
+UseTab: ForIndentation
+SpaceBeforeParens: ControlStatements
+SpaceBeforeInheritanceColon: 'true'
+SpaceBeforeCtorInitializerColon: 'true'
+SpaceBeforeCpp11BracedList: 'true'
+SpaceBeforeRangeBasedForLoopColon: 'true'
+
+ColumnLimit: 120
+...
