@@ -1,37 +1,96 @@
 <!DOCTYPE html>
 <html>
 <head>
+    <title>Distortion Curve Editor</title>
+    <script type="module" src="main.js"></script>
     <style>
-        body { background: #121212; color: white; font-family: sans-serif; 
-               display: flex; justify-content: center; align-items: center; 
-               height: 100vh; margin: 0; overflow: hidden; }
-        .knob-container { text-align: center;}
-        input { width: 250px; cursor: pointer;}
+        body { 
+            background: #121212; 
+            color: white; 
+            font-family: sans-serif; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: center; 
+            align-items: center; 
+            height: 100vh; 
+            margin: 0; 
+            overflow: hidden; 
+        }
+        .plugin-title {
+            margin-bottom: 20px;
+            font-size: 2em;
+            color: #00FFFF; /* Bright cyan for the title */
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px; 
+        }
+        .slider-group { /* New class to group label, slider, and value display */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 10px; /* Space between slider groups */
+        }
+        .slider-group label {
+            font-size: 0.9em;
+            margin-bottom: 5px;
+        }
+        .slider-value { /* Style for displaying slider value */
+            font-size: 0.8em;
+            color: #AAA;
+            margin-top: 5px;
+        }
+        input[type="range"] { 
+            width: 250px; 
+            cursor: pointer;
+        }
+        canvas {
+            background: #202020; 
+            border: 1px solid #444; 
+            border-radius: 5px; 
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.5); 
+        }
+        button {
+            margin-top: 20px; /* Space above the button */
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
     </style>
 </head>
 <body>
-    <div class="knob-container">
-        <h3>Gain Control</h3>
-        <input type="range" id="gainSlider" min="0" max="1" value="0.5">
+    <h1 class="plugin-title">Rend</h1>
+    
+    <div class="container">
+        <!-- Canvas for the Curve Editor -->
+        <canvas id="curveEditorCanvas" width="300" height="200"></canvas>
+
+        <div class="knob-container">
+            <!-- Gain Control Slider -->
+            <div class="slider-group">
+                <label for="gainSlider">Output Gain</label>
+                <input type="range" id="gainSlider" min="0" max="1" value="0.5" step="0.01">
+                <span id="gainLabel" class="slider-value">0.50</span>
+            </div>
+
+            <!-- Drive Control Slider -->
+            <div class="slider-group">
+                <label for="driveSlider">Drive</label>
+                <input type="range" id="driveSlider" min="0" max="10" value="1" step="0.01">
+                <span id="driveLabel" class="slider-value">1.00</span>
+            </div>
+            
+            <button id="button">Send Debug Message</button>
+        </div>
     </div>
-
-    <!-- No 'src' here. Use the block below to import and run your logic. -->
-    <script type="module">
-        // Use a relative path that matches the 'path' check in C++
-        import * as Juce from "./juce/index.js";
-
-        const slider = document.getElementById("gainSlider");
-        const sliderState = Juce.getSliderState("gain");
-        slider.oninput = function () {
-            sliderState.setNormalisedValue(this.value);
-        };
-
-        slider.step = 1 / sliderState.properties.numSteps;
-
-        sliderState.valueChangedEvent.addListener(() => {
-            slider.value = sliderState.getNormalisedValue();
-        });
-
-    </script>
 </body>
 </html>

@@ -12,6 +12,13 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor() :
 #endif
                        ),
     apvts(*this, nullptr, "Parameters", createParameterLayout()) {
+
+	if (!apvts.state.hasProperty(IDs::curvePoints)) {
+		apvts.state.setProperty(
+		    IDs::curvePoints, "-1.0,-1.0, -0.5,-0.5, 0.0,0.0, 0.5,0.5, 1.0,1.0", nullptr);
+	}
+
+	apvts.state.addListener(this);
 }
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor() {}
@@ -69,7 +76,13 @@ void AudioPluginAudioProcessor::prepareToPlay(double sampleRate, int samplesPerB
 	// Use this method as the place to do any pre-playback
 	// initialisation that you need..
 	juce::ignoreUnused(sampleRate, samplesPerBlock);
-	dspUnit.prepare(sampleRate);
+	dspUnit.prepare(sampleRate, samplesPerBlock);
+	juce::String currentCurve = apvts.state.getProperty(IDs::curvePoints).toString();
+
+	// Safety check: if for some reason the property is empty, use default
+	if (currentCurve.isEmpty()) { currentCurve = "-1.0,-1.0,-0.5,-0.5,0.0,0.0,0.5,0.5,1.0,1.0"; }
+
+	dspUnit.updateCurve(currentCurve);
 }
 
 void AudioPluginAudioProcessor::releaseResources() {
@@ -99,7 +112,8 @@ bool AudioPluginAudioProcessor::isBusesLayoutSupported(const BusesLayout &layout
 #endif
 }
 
-void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer, juce::MidiBuffer &midiMessages) {
+void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer,
+                                             juce::MidiBuffer &midiMessages) {
 	juce::ignoreUnused(midiMessages);
 
 	juce::ScopedNoDenormals noDenormals;
@@ -112,7 +126,8 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer, j
 	// This is here to avoid people getting screaming feedback
 	// when they first compile a plugin, but obviously you don't need to keep
 	// this code if your algorithm always overwrites all the output channels.
-	for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i) buffer.clear(i, 0, buffer.getNumSamples());
+	for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
+		buffer.clear(i, 0, buffer.getNumSamples());
 
 	// This is the place where you'd normally do the guts of your plugin's
 	// audio processing...
@@ -123,7 +138,10 @@ void AudioPluginAudioProcessor::processBlock(juce::AudioBuffer<float> &buffer, j
 
 	// Get the gain parameter value from APVTS
 	float gainValue = apvts.getRawParameterValue(IDs::gain.getParamID())->load();
-	dspUnit.process(buffer, gainValue);
+	dspUnit.setGain(gainValue);
+	float driveValue = apvts.getRawParameterValue(IDs::drive.getParamID())->load();
+	dspUnit.setDrive(driveValue);
+	dspUnit.process(buffer);
 }
 
 //==============================================================================
@@ -148,25 +166,56 @@ void AudioPluginAudioProcessor::setStateInformation(const void *data, int sizeIn
 	std::unique_ptr<juce::XmlElement> xmlState(getXmlFromBinary(data, sizeInBytes));
 
 	if (xmlState.get() != nullptr)
-		if (xmlState->hasTagName(apvts.state.getType())) apvts.replaceState(juce::ValueTree::fromXml(*xmlState));
+		if (xmlState->hasTagName(apvts.state.getType()))
+			apvts.replaceState(juce::ValueTree::fromXml(*xmlState));
 }
 
 //==============================================================================
-juce::AudioProcessorValueTreeState::ParameterLayout AudioPluginAudioProcessor::createParameterLayout() {
+juce::AudioProcessorValueTreeState::ParameterLayout
+AudioPluginAudioProcessor::createParameterLayout() {
 	juce::AudioProcessorValueTreeState::ParameterLayout layout;
+
+	auto attributes =
+	    juce::AudioParameterFloatAttributes()
+	        .withStringFromValueFunction([](auto v, int) { return juce::String(v, 2); })
+	        .withValueFromStringFunction([](auto t) { return t.getFloatValue(); });
 
 	// Add gain parameter: range from 0.0 to 1.0, default 0.5 (half gain)
 	layout.add(std::make_unique<juce::AudioParameterFloat>(
-	    IDs::gain,
-	    "Gain",
-	    juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f),
-	    0.5f,
-	    juce::String(),
-	    juce::AudioProcessorParameter::genericParameter,
-	    [](float value, int) { return juce::String(value, 2); },
-	    [](const juce::String &text) { return text.getFloatValue(); }));
+	    IDs::gain, "Gain", juce::NormalisableRange<float>(0.0f, 1.0f, 0.01f), 0.5f, attributes));
+
+	layout.add(std::make_unique<juce::AudioParameterFloat>(
+	    IDs::drive, "Drive", juce::NormalisableRange<float>(0.0f, 10.0f, 0.01f), 0.5f, attributes));
 
 	return layout;
+}
+
+void AudioPluginAudioProcessor::valueTreePropertyChanged(
+    juce::ValueTree &treeWhosePropertyHasChanged, const juce::Identifier &property) {
+	if (treeWhosePropertyHasChanged == apvts.state) {
+		if (property == IDs::curvePoints) {
+			auto curvePointsString = apvts.state.getProperty(IDs::curvePoints).toString();
+			dspUnit.updateCurve(curvePointsString);
+		}
+	}
+}
+
+// When preset is loaded
+void AudioPluginAudioProcessor::valueTreeRedirected(juce::ValueTree &treeWhichHasBeenChanged) {
+	juce::String newCurve = treeWhichHasBeenChanged.getProperty(IDs::curvePoints).toString();
+
+	if (newCurve.isEmpty()) return;
+
+	dspUnit.updateCurve(newCurve);
+
+	// Use callAsync because this callback might happen on a background thread,
+	// but UI updates must happen on the Message Thread.
+	juce::MessageManager::callAsync([this, newCurve]() {
+		// Check if the editor is actually open
+		if (auto *editor = dynamic_cast<AudioPluginAudioProcessorEditor *>(getActiveEditor())) {
+			editor->updateCurveInUI(newCurve);
+		}
+	});
 }
 
 //==============================================================================

@@ -40,5 +40,5 @@ SpaceBeforeCtorInitializerColon: 'true'
 SpaceBeforeCpp11BracedList: 'true'
 SpaceBeforeRangeBasedForLoopColon: 'true'
 
-ColumnLimit: 120
+ColumnLimit: 100
 ...

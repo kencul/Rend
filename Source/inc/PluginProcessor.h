@@ -5,10 +5,14 @@
 
 namespace IDs {
 static const juce::ParameterID gain {"gain", 1};
-}
+static const juce::ParameterID drive {"drive", 1};
+static const juce::Identifier curvePoints {"curvePoints"};
+} // namespace IDs
 
 //==============================================================================
-class AudioPluginAudioProcessor final : public juce::AudioProcessor {
+class AudioPluginAudioProcessor final :
+    public juce::AudioProcessor,
+    public juce::ValueTree::Listener {
 public:
 	//==============================================================================
 	AudioPluginAudioProcessor();
@@ -51,6 +55,9 @@ public:
 private:
 	//==============================================================================
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AudioPluginAudioProcessor)
+	void valueTreePropertyChanged(juce::ValueTree &treeWhosePropertyHasChanged,
+	                              const juce::Identifier &property) override;
+	void valueTreeRedirected(juce::ValueTree &treeWhichHasBeenChanged) override;
 
 	DSP dspUnit;
 	juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();

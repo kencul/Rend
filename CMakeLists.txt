@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(MyPlugin VERSION 0.0.1 LANGUAGES C CXX)
+project(Rend VERSION 0.0.1 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -12,6 +12,7 @@ SOURCES
 "Source/ui/index.html"
 "Source/ui/juce/index.js"
 "Source/ui/juce/check_native_interop.js"
+"Source/ui/main.js"
 )
 
 # --- Plugin Configuration ---
