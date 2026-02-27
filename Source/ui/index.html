@@ -12,7 +12,7 @@
 <body>
     <div class="knob-container">
         <h3>Gain Control</h3>
-        <input type="range" id="gainSlider" min="0" max="1" value="0.5" step="0.001">
+        <input type="range" id="gainSlider" min="0" max="1" value="0.5">
     </div>
 
     <!-- No 'src' here. Use the block below to import and run your logic. -->
@@ -31,6 +31,7 @@
         sliderState.valueChangedEvent.addListener(() => {
             slider.value = sliderState.getNormalisedValue();
         });
+
     </script>
 </body>
 </html>

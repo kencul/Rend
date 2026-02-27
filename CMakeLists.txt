@@ -2,7 +2,6 @@ cmake_minimum_required(VERSION 3.22)
 
 project(MyPlugin VERSION 0.0.1 LANGUAGES C CXX)
 
-# Use C++20 for modern DSP features (e.g., std::numbers, spans)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
