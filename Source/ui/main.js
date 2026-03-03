@@ -47,7 +47,38 @@ if (initData && initData.initialCurveString) {
 	}
 }
 
+const nativeGetPresetList = Juce.getNativeFunction("getPresetList");
+const nativeLoadPreset    = Juce.getNativeFunction("loadPreset");
+const nativeSavePreset    = Juce.getNativeFunction("savePreset");
+const nativeDeletePreset  = Juce.getNativeFunction("deletePreset");
+
+// Fetch presets from C++ and populate the combobox
+async function refreshPresetList(presetToSelect = null) {
+	try {
+		// Call the C++ function "getPresetList"
+		const presets = await nativeGetPresetList();
+		const select  = document.getElementById('presetSelect');
+
+		// Keep the first "placeholder" option, remove others
+		while (select.options.length > 1) { select.remove(1); }
+
+		// Check if preset isnt null
+		if (presets) {
+			presets.forEach(name => {
+				const option = document.createElement('option');
+				option.value = name;
+				option.text  = name;
+				select.appendChild(option);
+			});
+		}
+
+		if (presetToSelect) { select.value = presetToSelect; }
+	} catch (error) { console.error("Error fetching preset list from C++:", error); }
+}
+
 document.addEventListener("DOMContentLoaded", () => {
+	refreshPresetList();
+
 	const gainSlider     = document.getElementById("gainSlider");
 	const sliderState    = Juce.getSliderState("gain");
 	const gainValueLabel = document.getElementById("gainLabel");
@@ -301,4 +332,38 @@ document.addEventListener("DOMContentLoaded", () => {
 	drawCurve();
 	updateGainUI();
 	updateDriveUI();
+
+	// --- Preset Management ---
+
+	document.getElementById('presetSelect')
+	    .addEventListener('change', (e) => { nativeLoadPreset(e.target.value); });
+
+	document.getElementById('btnSave').addEventListener('click', async () => {
+		// Use a JS prompt to get the name
+		const name = prompt("Enter preset name:");
+
+		if (name) {
+			await nativeSavePreset(name);
+
+			await refreshPresetList();
+			document.getElementById('presetSelect').value = name;
+		}
+	});
+
+	document.getElementById('btnDelete').addEventListener('click', async () => {
+		const select = document.getElementById('presetSelect');
+		const name   = select.value;
+
+		// Guard against the placeholder being selected
+		if (!name) return;
+
+		// Use a native browser confirmation dialog to prevent accidental deletion
+		if (confirm(`Are you sure you want to delete "${name}"?`)) {
+			await nativeDeletePreset(name);
+			await refreshPresetList();
+
+			// Revert selection to the default placeholder
+			select.selectedIndex = 0;
+		}
+	});
 });

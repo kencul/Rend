@@ -25,12 +25,21 @@ FORMATS VST3 Standalone
 NEEDS_WEBVIEW2 TRUE 
 )
 
+get_target_property(PRODUCT_NAME ${PROJECT_NAME} JUCE_PRODUCT_NAME)
+get_target_property(COMPANY_NAME ${PROJECT_NAME} JUCE_COMPANY_NAME)
+target_compile_definitions(${PROJECT_NAME} PRIVATE
+  JUCE_PRODUCT_NAME="${PRODUCT_NAME}"
+  JUCE_COMPANY_NAME="${COMPANY_NAME}"
+  JUCE_PRODUCT_VERSION="${PROJECT_VERSION}")
+
 # Define source and header locations
 target_sources(${PROJECT_NAME} PRIVATE
 Source/src/PluginProcessor.cpp
 Source/src/PluginEditor.cpp
+Source/src/PresetManager.cpp
 Source/inc/PluginProcessor.h
 Source/inc/PluginEditor.h
+Source/inc/PresetManager.h
 )
 
 # Add the inc directory to search paths

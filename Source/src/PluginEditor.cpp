@@ -14,8 +14,10 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor(AudioPluginAudi
                     juce::File::getSpecialLocation(juce::File::SpecialLocationType::tempDirectory)))
             .withNativeIntegrationEnabled()
             .withResourceProvider([this](const juce::String &url) { return getResource(url); })
+
             .withOptionsFrom(gainRelay)
             .withOptionsFrom(driveRelay)
+
             .withEventListener(
                 "debugMessageFromUI",
                 [this](const juce::var &message) {
@@ -32,9 +34,57 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor(AudioPluginAudi
 	                processorRef.apvts.state.setProperty(
 	                    IDs::curvePoints, newCurvePointsString, nullptr);
                 })
+
             .withInitialisationData(
                 "initialCurveString",
-                processorRef.apvts.state.getProperty(IDs::curvePoints).toString())),
+                processorRef.apvts.state.getProperty(IDs::curvePoints).toString())
+
+            .withNativeFunction("getPresetList",
+                                [this](const juce::Array<juce::var> &args, auto completion) {
+	                                juce::ignoreUnused(
+	                                    args); // No arguments expected for this function
+	                                // Get array from Manager
+	                                auto presets = processorRef.presetManager->getAllPresets();
+
+	                                // Convert StringArray to a JS-compatible var array
+	                                juce::var presetJsArray;
+	                                for (auto &p : presets) presetJsArray.append(p);
+
+	                                // Send back to JS
+	                                completion(presetJsArray);
+                                })
+            .withNativeFunction("loadPreset",
+                                [this](const juce::Array<juce::var> &args, auto completion) {
+	                                if (args.size() > 0 && args[0].isString()) {
+		                                juce::String name = args[0].toString();
+		                                processorRef.presetManager->loadPreset(name);
+	                                }
+	                                completion({}); // completion must be called even if void
+                                })
+            .withNativeFunction("savePreset",
+                                [this](const juce::Array<juce::var> &args, auto completion) {
+	                                if (args.size() > 0 && args[0].isString()) {
+		                                juce::String name = args[0].toString();
+		                                processorRef.presetManager->savePreset(name);
+
+		                                // Return the updated list immediately so UI refreshes
+		                                auto presets = processorRef.presetManager->getAllPresets();
+		                                juce::var presetJsArray;
+		                                for (auto &p : presets) presetJsArray.append(p);
+		                                completion(presetJsArray);
+	                                } else {
+		                                completion({});
+	                                }
+                                })
+            .withNativeFunction("deletePreset",
+                                [this](const juce::Array<juce::var> &args, auto completion) {
+	                                if (args.size() > 0 && args[0].isString()) {
+		                                processorRef.presetManager->deletePreset(
+		                                    args[0].toString());
+	                                }
+
+	                                completion({});
+                                })),
     gainAttachment(*processorRef.apvts.getParameter(IDs::gain.getParamID()), gainRelay),
     driveAttachment(*processorRef.apvts.getParameter(IDs::drive.getParamID()), driveRelay) {
 	addAndMakeVisible(webView);

@@ -19,6 +19,8 @@ AudioPluginAudioProcessor::AudioPluginAudioProcessor() :
 	}
 
 	apvts.state.addListener(this);
+
+	presetManager = std::make_unique<PresetManager>(apvts);
 }
 
 AudioPluginAudioProcessor::~AudioPluginAudioProcessor() {}

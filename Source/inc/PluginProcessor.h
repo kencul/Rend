@@ -1,5 +1,6 @@
 #pragma once
 
+#include "PresetManager.h"
 #include "dsp.h"
 #include <juce_audio_processors/juce_audio_processors.h>
 
@@ -51,6 +52,7 @@ public:
 	void setStateInformation(const void *data, int sizeInBytes) override;
 
 	juce::AudioProcessorValueTreeState apvts;
+	std::unique_ptr<PresetManager> presetManager;
 
 private:
 	//==============================================================================
