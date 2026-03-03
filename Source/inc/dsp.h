@@ -7,51 +7,67 @@ public:
 
 	void prepare(double sampleRate, int samplesPerBlock) {
 		juce::ignoreUnused(sampleRate, samplesPerBlock);
+
+		const double rampSeconds = 0.02;
+		_gain.reset(sampleRate, rampSeconds);
+		_drive.reset(sampleRate, rampSeconds);
+	}
+
+	void swapIfPending() {
+		if (pendingCurveDirty.exchange(false)) { activeControlPoints = pendingControlPoints; }
 	}
 
 	void process(juce::AudioBuffer<float> &buffer) {
 		const auto numChannels = buffer.getNumChannels();
 		const auto numSamples  = buffer.getNumSamples();
 
-		for (int channel = 0; channel < numChannels; ++channel) {
-			auto *channelData = buffer.getWritePointer(channel);
+		for (int i = 0; i < numSamples; ++i) {
+			// Advance both smoothers once per sample, shared across channels
+			const float gain  = _gain.getNextValue();
+			const float drive = _drive.getNextValue();
 
-			for (int i = 0; i < numSamples; ++i) {
-				float input    = channelData[i] * _drive;
-				channelData[i] = _gain * interpolate(input);
+			for (int channel = 0; channel < numChannels; ++channel) {
+				auto *data = buffer.getWritePointer(channel);
+				data[i]    = gain * interpolate(data[i] * drive);
 			}
 		}
 	}
 
-	void setDrive(float gain) { _drive = gain; }
-	void setGain(float gain) { _gain = gain; }
+	void setGain(float gain) { _gain.setTargetValue(gain); }
+	void setDrive(float drive) { _drive.setTargetValue(drive); }
 
 	void updateCurve(const juce::String &pointString) {
 		auto newPoints = parseString(pointString);
 		std::sort(
 		    newPoints.begin(), newPoints.end(), [](auto &a, auto &b) { return a.first < b.first; });
 
-		controlPoints = newPoints;
+		pendingControlPoints = std::move(newPoints);
+		pendingCurveDirty.store(true);
 	}
 
 private:
 	// Initialize with defaults to avoid garbage values
-	float _gain {1.0f};
-	float _drive {1.0f};
+	juce::SmoothedValue<float> _gain {1.0f};
+	juce::SmoothedValue<float> _drive {1.0f};
 
-	std::array<std::pair<float, float>, 5> controlPoints {std::pair<float, float> {-1.0f, -1.0f},
-	                                                      std::pair<float, float> {-0.5f, -0.5f},
-	                                                      std::pair<float, float> {0.0f, 0.0f},
-	                                                      std::pair<float, float> {0.5f, 0.5f},
-	                                                      std::pair<float, float> {1.0f, 1.0f}};
+	using PointArray = std::vector<std::pair<float, float>>;
+
+	static PointArray makeDefaultPoints() {
+		return {{-1.0f, -1.0f}, {-0.5f, -0.5f}, {0.0f, 0.0f}, {0.5f, 0.5f}, {1.0f, 1.0f}};
+	}
+
+	PointArray activeControlPoints {makeDefaultPoints()};
+	PointArray pendingControlPoints {makeDefaultPoints()};
+	std::atomic<bool> pendingCurveDirty {false};
 
 	float interpolate(float x) const {
+		if (activeControlPoints.size() < 2) return x;
 		// Ensure x is within the bounds of your control points
-		x = juce::jlimit(controlPoints.front().first, controlPoints.back().first, x);
+		x = juce::jlimit(activeControlPoints.front().first, activeControlPoints.back().first, x);
 
-		for (size_t i = 0; i < controlPoints.size() - 1; ++i) {
-			const auto &p1 = controlPoints[i];
-			const auto &p2 = controlPoints[i + 1];
+		for (size_t i = 0; i < activeControlPoints.size() - 1; ++i) {
+			const auto &p1 = activeControlPoints[i];
+			const auto &p2 = activeControlPoints[i + 1];
 
 			if (x >= p1.first && x <= p2.first) {
 				float range = p2.first - p1.first;
@@ -66,15 +82,20 @@ private:
 		return x;
 	}
 
-	std::array<std::pair<float, float>, 5> parseString(const juce::String &s) {
-		std::array<std::pair<float, float>, 5> pts;
+	static PointArray parseString(const juce::String &s) {
 		juce::StringArray tokens;
-		tokens.addTokens(s, ",", "");
+		tokens.addTokens(s.trim(), ",", "");
 
-		// Ensure we don't read out of bounds if the string is malformed
-		for (int i = 0; i < 5 && (i * 2 + 1) < tokens.size(); ++i) {
-			pts[i] = {tokens[i * 2].getFloatValue(), tokens[i * 2 + 1].getFloatValue()};
-		}
+		// Drop trailing empty token from a trailing comma
+		if (!tokens.isEmpty() && tokens.strings.getLast().trim().isEmpty())
+			tokens.strings.removeLast();
+
+		PointArray pts;
+		pts.reserve(tokens.size() / 2);
+
+		for (int i = 0; i + 1 < tokens.size(); i += 2)
+			pts.push_back({tokens[i].getFloatValue(), tokens[i + 1].getFloatValue()});
+
 		return pts;
 	}
 };

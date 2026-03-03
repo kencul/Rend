@@ -10,31 +10,21 @@ let controlPoints =
  * Parses a comma-separated string or JUCE event object to update controlPoints.
  * @returns {boolean} True if update was successful.
  */
-function updateControlPointsFromString(inputData) {
-	if (!inputData) return false;
+function updateControlPointsFromString(pointsString) {
+	if (!pointsString?.includes(',')) return false;
 
-	let pointsString = "";
+	const tokens = pointsString.split(',').map(t => t.trim()).filter(Boolean);
+	if (tokens.length < 2 || tokens.length % 2 !== 0) return false;
 
-	//  Handle JUCE event objects which wrap data in 'payload'
-	if (Array.isArray(inputData)) {
-		// JUCE sometimes wraps the string in a single-element array
-		pointsString = inputData.length > 0 ? String(inputData[0]) : "";
-	} else if (typeof inputData === 'object') {
-		pointsString = inputData.payload || inputData.value || "";
-	} else {
-		pointsString = String(inputData);
+	const parsed = [];
+	for (let i = 0; i < tokens.length; i += 2) {
+		const x = parseFloat(tokens[i]);
+		const y = parseFloat(tokens[i + 1]);
+		if (isNaN(x) || isNaN(y)) return false;
+		parsed.push({x, y});
 	}
 
-	if (!pointsString.includes(',')) return false;
-
-	const tokens = pointsString.split(',');
-	if (tokens.length !== controlPoints.length * 2) return false;
-
-	for (let i = 0; i < controlPoints.length; i++) {
-		controlPoints[i].x = parseFloat(tokens[i * 2]);
-		controlPoints[i].y = parseFloat(tokens[i * 2 + 1]);
-	}
-
+	controlPoints = parsed;
 	return true;
 }
 
@@ -277,25 +267,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
 			document.removeEventListener('mousemove', handleMouseMove);
 			document.removeEventListener('mouseup', handleMouseUp);
+			document.removeEventListener('pointercancel', handleMouseUp);
+			window.addEventListener('blur', handleMouseUp);
 		}
 	}
 
 	canvas.addEventListener('mousedown', (e) => {
-		const mouseX = e.offsetX;
-		const mouseY = e.offsetY;
-
 		for (let i = 0; i < controlPoints.length; i++) {
 			const point = controlPoints[i];
 			const px    = normalizedToCanvasX(point.x);
 			const py    = normalizedToCanvasY(point.y);
+			const dist  = Math.hypot(e.offsetX - px, e.offsetY - py);
 
-			const dist = Math.sqrt(Math.pow(mouseX - px, 2) + Math.pow(mouseY - py, 2));
 			if (dist < pointRadius + 2) {
 				draggingPointIndex = i;
 				startLiveUpdates();
-
 				document.addEventListener('mousemove', handleMouseMove);
 				document.addEventListener('mouseup', handleMouseUp);
+				document.addEventListener('pointercancel', handleMouseUp);
+				window.addEventListener('blur', handleMouseUp);
 				break;
 			}
 		}
@@ -312,16 +302,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
 	// --- Runtime Event Listener ---
 	// Handles updates from C++ (e.g., preset loading)
-	window.__JUCE__.backend.addEventListener("loadCurveFromBackend", (messageFromBackend) => {
-		if (updateControlPointsFromString(messageFromBackend)) {
+	window.__JUCE__.backend.addEventListener("loadCurveFromBackend", (msg) => {
+		const curveString = msg?.payload ?? "";
+
+		if (updateControlPointsFromString(curveString)) {
 			drawCurve();
-			// Sync lastSentString to prevent echoing back to C++
-			if (messageFromBackend && messageFromBackend.payload) {
-				lastSentPointsString = messageFromBackend.payload;
-			}
-			console.log("Loaded curve data from C++.");
+			lastSentPointsString = curveString;
 		} else {
-			console.warn("Malformed curve string from C++.");
+			console.warn("Malformed curve string from C++:", curveString);
 		}
 	});
 
@@ -335,8 +323,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
 	// --- Preset Management ---
 
-	document.getElementById('presetSelect')
-	    .addEventListener('change', (e) => { nativeLoadPreset(e.target.value); });
+	document.getElementById('presetSelect').addEventListener('change', async (e) => {
+		const name = e.target.value;
+		await nativeLoadPreset(name);
+		document.getElementById('presetSelect').value = name;
+	});
 
 	document.getElementById('btnSave').addEventListener('click', async () => {
 		// Use a JS prompt to get the name
