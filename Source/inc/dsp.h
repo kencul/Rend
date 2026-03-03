@@ -5,12 +5,27 @@ class DSP {
 public:
 	DSP() = default;
 
-	void prepare(double sampleRate, int samplesPerBlock) {
-		juce::ignoreUnused(sampleRate, samplesPerBlock);
-
+	void prepare(double sampleRate, int samplesPerBlock, int numChannels) {
 		const double rampSeconds = 0.02;
 		_gain.reset(sampleRate, rampSeconds);
 		_drive.reset(sampleRate, rampSeconds);
+
+		oversampling = std::make_unique<juce::dsp::Oversampling<float>>(
+		    numChannels,
+		    3,
+		    juce::dsp::Oversampling<float>::filterHalfBandPolyphaseIIR,
+		    true, // max quality
+		    true  // integer latency for DAW compensation
+		);
+
+		oversampling->initProcessing(static_cast<size_t>(samplesPerBlock));
+		oversampling->reset();
+
+		// One filter instance per channel as IIR filters are stateful
+		dcBlockers.clear();
+		dcBlockers.resize(numChannels);
+		auto coefficients = juce::dsp::IIR::Coefficients<float>::makeHighPass(sampleRate, 20.0f);
+		for (auto &filter : dcBlockers) filter.coefficients = coefficients;
 	}
 
 	void swapIfPending() {
@@ -18,18 +33,32 @@ public:
 	}
 
 	void process(juce::AudioBuffer<float> &buffer) {
-		const auto numChannels = buffer.getNumChannels();
-		const auto numSamples  = buffer.getNumSamples();
+		juce::dsp::AudioBlock<float> inputBlock(buffer);
+		// returns a block at 2x sample rate
+		auto oversampledBlock = oversampling->processSamplesUp(inputBlock);
 
-		for (int i = 0; i < numSamples; ++i) {
-			// Advance both smoothers once per sample, shared across channels
+		const auto osNumSamples  = oversampledBlock.getNumSamples();
+		const auto osNumChannels = oversampledBlock.getNumChannels();
+
+		for (size_t i = 0; i < osNumSamples; ++i) {
+			// Advance smoothers at the oversampled rate
 			const float gain  = _gain.getNextValue();
 			const float drive = _drive.getNextValue();
 
-			for (int channel = 0; channel < numChannels; ++channel) {
-				auto *data = buffer.getWritePointer(channel);
+			for (size_t ch = 0; ch < osNumChannels; ++ch) {
+				auto *data = oversampledBlock.getChannelPointer(ch);
 				data[i]    = gain * interpolate(data[i] * drive);
 			}
+		}
+
+		// Downsample back to original rate
+		oversampling->processSamplesDown(inputBlock);
+
+		// Remove DC offset
+		for (int ch = 0; ch < buffer.getNumChannels(); ++ch) {
+			auto *data = buffer.getWritePointer(ch);
+			for (int i = 0; i < buffer.getNumSamples(); ++i)
+				data[i] = dcBlockers[ch].processSample(data[i]);
 		}
 	}
 
@@ -45,10 +74,18 @@ public:
 		pendingCurveDirty.store(true);
 	}
 
+	// Returns latency in samples for DAW compensation
+	float getLatencySamples() const {
+		return oversampling ? oversampling->getLatencyInSamples() : 0.0f;
+	}
+
 private:
 	// Initialize with defaults to avoid garbage values
 	juce::SmoothedValue<float> _gain {1.0f};
 	juce::SmoothedValue<float> _drive {1.0f};
+
+	std::unique_ptr<juce::dsp::Oversampling<float>> oversampling;
+	std::vector<juce::dsp::IIR::Filter<float>> dcBlockers;
 
 	using PointArray = std::vector<std::pair<float, float>>;
 

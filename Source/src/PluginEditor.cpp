@@ -34,6 +34,12 @@ AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor(AudioPluginAudi
 	                processorRef.apvts.state.setProperty(
 	                    IDs::curvePoints, newCurvePointsString, nullptr);
                 })
+            .withEventListener(
+                "webViewReady",
+                [this](const juce::var &) {
+	                auto curve = processorRef.apvts.state.getProperty(IDs::curvePoints).toString();
+	                if (curve.isNotEmpty()) updateCurveInUI(curve);
+                })
 
             .withInitialisationData(
                 "initialCurveString",

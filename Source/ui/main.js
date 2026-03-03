@@ -67,6 +67,7 @@ async function refreshPresetList(presetToSelect = null) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+	window.__JUCE__.backend.emitEvent("webViewReady", {});
 	refreshPresetList();
 
 	const gainSlider     = document.getElementById("gainSlider");
@@ -322,6 +323,9 @@ document.addEventListener("DOMContentLoaded", () => {
 	updateDriveUI();
 
 	// --- Preset Management ---
+
+	document.getElementById('presetSelect')
+	    .addEventListener('change', (e) => { nativeLoadPreset(e.target.value); });
 
 	document.getElementById('presetSelect').addEventListener('change', async (e) => {
 		const name = e.target.value;

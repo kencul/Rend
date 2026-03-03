@@ -78,13 +78,16 @@ void AudioPluginAudioProcessor::prepareToPlay(double sampleRate, int samplesPerB
 	// Use this method as the place to do any pre-playback
 	// initialisation that you need..
 	juce::ignoreUnused(sampleRate, samplesPerBlock);
-	dspUnit.prepare(sampleRate, samplesPerBlock);
+	dspUnit.prepare(sampleRate, samplesPerBlock, getTotalNumInputChannels());
 	juce::String currentCurve = apvts.state.getProperty(IDs::curvePoints).toString();
 
 	// Safety check: if for some reason the property is empty, use default
 	if (currentCurve.isEmpty()) { currentCurve = "-1.0,-1.0,-0.5,-0.5,0.0,0.0,0.5,0.5,1.0,1.0"; }
 
 	dspUnit.updateCurve(currentCurve);
+
+	// Tell the DAW about the oversampling filter's latency
+	setLatencySamples(static_cast<int>(dspUnit.getLatencySamples()));
 }
 
 void AudioPluginAudioProcessor::releaseResources() {
