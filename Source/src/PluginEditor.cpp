@@ -2,6 +2,15 @@
 #include "PluginProcessor.h"
 #include <BinaryData.h>
 
+const AudioPluginAudioProcessorEditor::ResourceMap AudioPluginAudioProcessorEditor::resourceMap = {
+    {"index.html", {BinaryData::index_html, BinaryData::index_htmlSize}},
+    {"main.js", {BinaryData::main_js, BinaryData::main_jsSize}},
+    {"index.js", {BinaryData::index_js, BinaryData::index_jsSize}},
+    {"check_native_interop.js",
+     {BinaryData::check_native_interop_js, BinaryData::check_native_interop_jsSize}},
+    {"knob.js", {BinaryData::knob_js, BinaryData::knob_jsSize}},
+};
+
 //==============================================================================
 AudioPluginAudioProcessorEditor::AudioPluginAudioProcessorEditor(AudioPluginAudioProcessor &p) :
     AudioProcessorEditor(&p), processorRef(p), gainRelay {IDs::gain.getParamID()},
@@ -144,43 +153,21 @@ static const char *getMimeForExtension(const juce::String &extension) {
 
 auto AudioPluginAudioProcessorEditor::getResource(const juce::String &url) const
     -> std::optional<Resource> {
-	std::cout << "ResourceProvider called with: " << url << std::endl;
-
-	// Strip directory info (e.g., "juce/index.js" becomes "index.js")
 	juce::String fileName = url == "/" ? "index.html" : url.fromLastOccurrenceOf("/", false, false);
+	juce::String extension = fileName.fromLastOccurrenceOf(".", false, false);
 
-	const juce::String extension = fileName.fromLastOccurrenceOf(".", false, false);
-	const char *mimeType         = getMimeForExtension(extension);
+	// Silently ignore requests we don't handle (favicon, browser internals, etc.)
+	if (extension.isEmpty()) return std::nullopt;
 
-	// Map the requested filename directly to your binary data arrays
-	// Note: If CMake put these inside a namespace (e.g., MyAssets::index_html),
-	// you will need to add the MyAssets:: prefix to the variables below.
-	if (fileName == "index.html") {
-		return Resource {std::vector<std::byte>((const std::byte *)BinaryData::index_html,
-		                                        (const std::byte *)BinaryData::index_html
-		                                            + BinaryData::index_htmlSize),
-		                 mimeType};
-	} else if (fileName == "main.js") {
-		return Resource {std::vector<std::byte>((const std::byte *)BinaryData::main_js,
-		                                        (const std::byte *)BinaryData::main_js
-		                                            + BinaryData::main_jsSize),
-		                 mimeType};
-	} else if (fileName == "index.js") {
-		return Resource {std::vector<std::byte>((const std::byte *)BinaryData::index_js,
-		                                        (const std::byte *)BinaryData::index_js
-		                                            + BinaryData::index_jsSize),
-		                 mimeType};
-	} else if (fileName == "check_native_interop.js") {
-		return Resource {
-		    std::vector<std::byte>((const std::byte *)BinaryData::check_native_interop_js,
-		                           (const std::byte *)BinaryData::check_native_interop_js
-		                               + BinaryData::check_native_interop_jsSize),
-		    mimeType};
-	}
+	const char *mimeType = getMimeForExtension(extension);
 
-	std::cout << "ResourceProvider error: File '" << fileName << "' not found in binaries."
-	          << std::endl;
-	return std::nullopt;
+	auto it = resourceMap.find(fileName);
+	if (it == resourceMap.end()) return std::nullopt;
+
+	auto [data, size] = it->second;
+	return Resource {std::vector<std::byte>(reinterpret_cast<const std::byte *>(data),
+	                                        reinterpret_cast<const std::byte *>(data) + size),
+	                 mimeType};
 }
 
 void AudioPluginAudioProcessorEditor::updateCurveInUI(const juce::String &curveData) {

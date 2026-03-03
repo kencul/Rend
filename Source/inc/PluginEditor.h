@@ -29,5 +29,8 @@ private:
 	using Resource = juce::WebBrowserComponent::Resource;
 	std::optional<Resource> getResource(const juce::String &url) const;
 
+	using ResourceMap = std::unordered_map<juce::String, std::pair<const char *, int>>;
+	static const ResourceMap resourceMap;
+
 	JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AudioPluginAudioProcessorEditor)
 };
